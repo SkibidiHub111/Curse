@@ -20,6 +20,13 @@ CREATE TABLE IF NOT EXISTS jobs (
 """)
 conn.commit()
 
+@app.route("/", methods=["GET"])
+def home():
+    cur.execute("SELECT job_id FROM jobs ORDER BY id ASC;")
+    rows = cur.fetchall()
+    data = [r[0] for r in rows]
+    return jsonify({"all": data if data else ["nil"]})
+
 @app.route("/job", methods=["POST"])
 def add_job():
     data = request.get_json()
@@ -29,7 +36,10 @@ def add_job():
     try:
         cur.execute("INSERT INTO jobs (job_id) VALUES (%s) ON CONFLICT (job_id) DO NOTHING;", (job_id,))
         conn.commit()
-        return jsonify({"success": True, "jobId": job_id})
+        cur.execute("SELECT job_id FROM jobs ORDER BY id ASC;")
+        rows = cur.fetchall()
+        all_jobs = [r[0] for r in rows]
+        return jsonify({"success": True, "jobId": job_id, "all": all_jobs})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -37,20 +47,20 @@ def add_job():
 def get_jobs():
     cur.execute("SELECT job_id FROM jobs ORDER BY id ASC;")
     rows = cur.fetchall()
-    return jsonify([r[0] for r in rows])
+    return jsonify({"all": [r[0] for r in rows] if rows else ["nil"]})
 
 @app.route("/latest", methods=["GET"])
 def get_latest():
     cur.execute("SELECT job_id FROM jobs ORDER BY id DESC LIMIT 1;")
     row = cur.fetchone()
-    return jsonify({"latest": row[0] if row else None})
+    return jsonify({"latest": row[0] if row else "nil"})
 
 @app.route("/jobid", methods=["GET"])
 def get_random_job():
     cur.execute("SELECT id, job_id FROM jobs;")
     rows = cur.fetchall()
     if not rows:
-        return jsonify({"jobId": None})
+        return jsonify({"jobId": "nil"})
     job = random.choice(rows)
     cur.execute("DELETE FROM jobs WHERE id = %s;", (job[0],))
     conn.commit()
