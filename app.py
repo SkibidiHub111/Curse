@@ -3,6 +3,7 @@ from flask_cors import CORS
 import psycopg2
 import random
 import os
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -20,8 +21,14 @@ CREATE TABLE IF NOT EXISTS jobs (
 """)
 conn.commit()
 
+# Hàm dọn dẹp job cũ hơn 10 phút
+def cleanup_old_jobs():
+    cur.execute("DELETE FROM jobs WHERE created_at < NOW() - INTERVAL '10 minutes';")
+    conn.commit()
+
 @app.route("/", methods=["GET"])
 def home():
+    cleanup_old_jobs()
     cur.execute("SELECT job_id FROM jobs ORDER BY id ASC;")
     rows = cur.fetchall()
     data = [r[0] for r in rows]
@@ -29,6 +36,7 @@ def home():
 
 @app.route("/job", methods=["POST"])
 def add_job():
+    cleanup_old_jobs()
     data = request.get_json()
     job_id = data.get("jobId")
     if not job_id:
@@ -45,18 +53,21 @@ def add_job():
 
 @app.route("/jobs", methods=["GET"])
 def get_jobs():
+    cleanup_old_jobs()
     cur.execute("SELECT job_id FROM jobs ORDER BY id ASC;")
     rows = cur.fetchall()
     return jsonify({"all": [r[0] for r in rows] if rows else ["nil"]})
 
 @app.route("/latest", methods=["GET"])
 def get_latest():
+    cleanup_old_jobs()
     cur.execute("SELECT job_id FROM jobs ORDER BY id DESC LIMIT 1;")
     row = cur.fetchone()
     return jsonify({"latest": row[0] if row else "nil"})
 
 @app.route("/jobid", methods=["GET"])
 def get_random_job():
+    cleanup_old_jobs()
     cur.execute("SELECT id, job_id FROM jobs;")
     rows = cur.fetchall()
     if not rows:
