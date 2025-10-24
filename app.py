@@ -7,7 +7,7 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://no_1_hub_user:p1DMNa1Qij5e0uw4yDUpzNDFUJ2OcUbb@dpg-d3tj9l6uk2gs73d6pd4g-a/no_1_hub")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://no_1_hub_user:p1DMNa1Qij5e0uw4yDUpzNDFUJ2OcUbb@dpg-d3tj9l6uk2gs73d6pd4g-a.oregon-postgres.render.com/no_1_hub")
 
 conn = psycopg2.connect(DATABASE_URL)
 cur = conn.cursor()
