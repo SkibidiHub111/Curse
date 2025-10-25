@@ -20,20 +20,17 @@ cur.execute("""
 CREATE TABLE IF NOT EXISTS jobs (
     id SERIAL PRIMARY KEY,
     job_id TEXT UNIQUE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW() AT TIME ZONE 'UTC'
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 """)
 conn.commit()
 
 def cleanup_old_jobs():
     try:
-        cur.execute("""
-            DELETE FROM jobs 
-            WHERE created_at < (NOW() AT TIME ZONE 'UTC') - INTERVAL '10 minutes';
-        """)
+        cur.execute("DELETE FROM jobs WHERE CURRENT_TIMESTAMP - created_at > INTERVAL '10 minutes';")
         conn.commit()
     except Exception as e:
-        print("[Cleanup error]", e)
+        print("Cleanup error:", e)
         conn.rollback()
 
 def auto_cleanup():
@@ -47,8 +44,7 @@ threading.Thread(target=auto_cleanup, daemon=True).start()
 def home():
     cur.execute("SELECT job_id FROM jobs ORDER BY id ASC;")
     rows = cur.fetchall()
-    data = [r[0] for r in rows]
-    return jsonify({"all": data if data else ["nil"]})
+    return jsonify({"all": [r[0] for r in rows] if rows else ["nil"]})
 
 @app.route("/job", methods=["POST"])
 def add_job():
@@ -57,16 +53,11 @@ def add_job():
     if not job_id:
         return jsonify({"error": "Missing jobId"}), 400
     try:
-        cur.execute("""
-            INSERT INTO jobs (job_id, created_at)
-            VALUES (%s, NOW() AT TIME ZONE 'UTC')
-            ON CONFLICT (job_id) DO NOTHING;
-        """, (job_id,))
+        cur.execute("INSERT INTO jobs (job_id) VALUES (%s) ON CONFLICT (job_id) DO NOTHING;", (job_id,))
         conn.commit()
         cur.execute("SELECT job_id FROM jobs ORDER BY id ASC;")
         rows = cur.fetchall()
-        all_jobs = [r[0] for r in rows]
-        return jsonify({"success": True, "jobId": job_id, "all": all_jobs})
+        return jsonify({"success": True, "jobId": job_id, "all": [r[0] for r in rows]})
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
@@ -97,13 +88,14 @@ def get_random_job():
 @app.route("/debug", methods=["GET"])
 def debug_jobs():
     cur.execute("""
-        SELECT job_id, created_at, NOW() AT TIME ZONE 'UTC' AS now_utc,
-               (NOW() AT TIME ZONE 'UTC') - created_at AS age
+        SELECT job_id, created_at, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP - created_at AS age
         FROM jobs ORDER BY id ASC;
     """)
     rows = cur.fetchall()
-    result = [{"job_id": r[0], "created_at": str(r[1]), "now_utc": str(r[2]), "age": str(r[3])} for r in rows]
-    return jsonify(result)
+    return jsonify([
+        {"job_id": r[0], "created_at": str(r[1]), "now": str(r[2]), "age": str(r[3])}
+        for r in rows
+    ])
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 3000))
